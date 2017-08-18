@@ -72,6 +72,19 @@ float floatFromPC = 0.0;
 
 boolean newData = false;
 
+/*************************** Rolling Average Setup *************************************/
+
+const int numReadings = 5;
+
+float readingsPh[numReadings];      // the readings from the analog input
+int readIndexPh = 0;              // the index of the current reading
+float totalPh = 0;                  // the running total
+float averagePh = 0;                // the average
+
+float readingsEc[numReadings];      // the readings from the analog input
+int readIndexEc = 0;              // the index of the current reading
+float totalEc = 0;                  // the running total
+float averageEc = 0;                // the average
 
 void setup() {
 
@@ -97,6 +110,15 @@ void setup() {
 
   // Setup MQTT subscription for onoff feed.
   mqtt.subscribe(&onoffbutton);
+
+  // Initialize all rolling average readings to 0
+  for (int thisReading = 0; thisReading < numReadings; thisReading++) {
+    readingsPh[thisReading] = 0;
+  }
+  for (int thisReading = 0; thisReading < numReadings; thisReading++) {
+    readingsEc[thisReading] = 0;
+  }
+  
 }
 
 void loop() {
@@ -130,6 +152,7 @@ void loop() {
 //      publishVernierMonitor();
       parseData();
       showParsedData();
+      calculateAndPublishRollingAverage();
       publishData();
       newData = false;
   }
@@ -250,9 +273,51 @@ void publishData(){
 
 }
 
+//============
+
+void calculateAndPublishRollingAverage(){
+  
+  if (strcmp(messageFromPC, "ph") == 0){
+  
+    // subtract the last reading:
+    totalPh = totalPh - readingsPh[readIndexPh];
+    // read from the sensor:
+    readingsPh[readIndexPh] = floatFromPC;
+    // add the reading to the total:
+    totalPh = totalPh + readingsPh[readIndexPh];
+    // advance to the next position in the array:
+    readIndexPh = readIndexPh + 1;
+  
+    // if we're at the end of the array...
+    if (readIndexPh >= numReadings) {
+      // ...wrap around to the beginning:
+      readIndexPh = 0;
+    }
+  
+    // calculate the average:
+    averagePh = totalPh / numReadings;
+    // send it to the computer as ASCII digits
+    Serial.println("averagePh: ");
+    Serial.println(averagePh);
+    
+//    if (! ph.publish(floatFromPC)) {
+//      Serial.println(F("Failed"));
+//    } else {
+//      Serial.println(F("OK!"));
+//    }
+  } else if (strcmp(messageFromPC, "ec") == 0){
+//    if (! ec.publish(floatFromPC)) {
+//      Serial.println(F("Failed"));
+//    } else {
+//      Serial.println(F("OK!"));
+//    }
+  } else {
+    Serial.println("invalid data key");
+  }
+
+}
+
 void publishVernierMonitor(){
   vernierSerialMonitor.publish(Serial.read());
-  Serial.println("String from pubishVernierMonitor");
-  Serial.println(vernierSerialMonitor);
 }
 
